@@ -256,7 +256,7 @@ export function CEODashboard() {
             {/* Graph 1: Response Velocity */}
             <KPICard
               title="Response Velocity"
-              subtitle="Avg hours since last activity for HVCs (by date added)"
+              subtitle="Avg hours since last activity (all candidates, by date added)"
               insight="24-hour rule adherence. Red line = target. Below is good."
             >
               <ResponsiveContainer width="100%" height="100%">
@@ -298,8 +298,8 @@ export function CEODashboard() {
             {/* Graph 2: Processing Throughput */}
             <KPICard
               title="Processing Throughput"
-              subtitle="New HVCs added vs HVCs verified (by day)"
-              insight="Processed should stay above New. Gap = backlog building."
+              subtitle="New candidates added vs verified (by day)"
+              insight="Verified should stay above New. Gap = backlog building."
             >
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={metrics.throughput}>

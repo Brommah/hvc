@@ -365,28 +365,42 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Fetch all candidates from last 30 days
-  const response = await notion.databases.query({
-    database_id: databaseId,
-    filter: {
-      property: 'Date Added',
-      created_time: {
-        on_or_after: thirtyDaysAgo.toISOString(),
-      },
-    },
-  });
+  // Fetch ALL candidates from last 30 days (with pagination)
+  const allPages: PageObjectResponse[] = [];
+  let hasMore = true;
+  let startCursor: string | undefined = undefined;
 
-  const allCandidates = response.results
-    .filter((page): page is PageObjectResponse => page.object === 'page' && 'properties' in page)
-    .map(mapPageToCandidate);
+  while (hasMore) {
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        property: 'Date Added',
+        created_time: {
+          on_or_after: thirtyDaysAgo.toISOString(),
+        },
+      },
+      start_cursor: startCursor,
+      page_size: 100,
+    });
+
+    const pages = response.results.filter(
+      (page): page is PageObjectResponse => page.object === 'page' && 'properties' in page
+    );
+    allPages.push(...pages);
+
+    hasMore = response.has_more;
+    startCursor = response.next_cursor ?? undefined;
+  }
+
+  const allCandidates = allPages.map(mapPageToCandidate);
 
   const days = getLast30Days();
 
-  // 1. Response Velocity - Avg "Hours Since Last Activity" for HVCs added each day
+  // 1. Response Velocity - Avg "Hours Since Last Activity" for ALL candidates added each day
   const responseVelocity: ResponseVelocityMetric[] = days.map(({ day, date }) => {
     const dayCandidates = allCandidates.filter(c => {
       const addedDate = c.dateAdded?.split('T')[0];
-      return addedDate === date && isHVC(c) && c.hoursSinceLastActivity !== null;
+      return addedDate === date && c.hoursSinceLastActivity !== null;
     });
     
     const avgHours = dayCandidates.length > 0
@@ -396,16 +410,16 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
     return { day, date, hours: Math.round(avgHours * 10) / 10, count: dayCandidates.length };
   });
 
-  // 2. Throughput - New HVCs vs Processed HVCs per day
+  // 2. Throughput - New candidates vs Processed per day (ALL candidates)
   const throughput: ThroughputMetric[] = days.map(({ day, date }) => {
     const newHVCs = allCandidates.filter(c => {
       const addedDate = c.dateAdded?.split('T')[0];
-      return addedDate === date && isHVC(c);
+      return addedDate === date;
     }).length;
     
     const processed = allCandidates.filter(c => {
       const verifiedDate = c.cvVerifiedByLynn?.split('T')[0];
-      return verifiedDate === date && isHVC(c);
+      return verifiedDate === date;
     }).length;
     
     return { day, date, newHVCs, processed };
