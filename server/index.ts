@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { getHighValueCandidates, getPendingHumanReview } from './notion.js';
+import { getHighValueCandidates, getPendingHumanReview, getCEOMetrics } from './notion.js';
 
 const app = express();
 const PORT = 3001;
@@ -36,6 +36,23 @@ app.get('/api/pending-review', async (_req, res) => {
     res.json({ success: true, data: candidates, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('Error fetching pending reviews:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * GET /api/ceo-metrics
+ * Returns CEO dashboard metrics for last 30 days
+ */
+app.get('/api/ceo-metrics', async (_req, res) => {
+  try {
+    const metrics = await getCEOMetrics();
+    res.json({ success: true, data: metrics, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('Error fetching CEO metrics:', error);
     res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 
