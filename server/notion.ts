@@ -280,83 +280,41 @@ export async function getPendingHumanReview(): Promise<Candidate[]> {
 }
 
 // CEO Metrics Types
-interface DailyMetric {
+interface DayData {
   day: string;
   date: string;
-}
-
-interface ResponseVelocityMetric extends DailyMetric {
-  hours: number;
-  count: number;
-}
-
-interface ThroughputMetric extends DailyMetric {
-  newHVCs: number;
-  processed: number;
-}
-
-interface AIAccuracyMetric extends DailyMetric {
-  delta: number;
-  count: number;
-}
-
-interface BottleneckMetric extends DailyMetric {
-  hours: number;
-  count: number;
-}
-
-interface ConversionMetric extends DailyMetric {
-  rate: number;
-  total: number;
-  converted: number;
+  newCandidates: number;
+  verified: number;
+  avgResponseHours: number;
 }
 
 export interface CEOMetrics {
-  responseVelocity: ResponseVelocityMetric[];
-  throughput: ThroughputMetric[];
-  aiAccuracy: AIAccuracyMetric[];
-  managerBottlenecks: BottleneckMetric[];
-  hvcQuality: ConversionMetric[];
+  dailyData: DayData[];
   summary: {
+    totalNew: number;
+    totalVerified: number;
+    backlog: number;
     avgResponseHours: number;
-    netFlow: number;
-    aiImprovement: number;
-    avgBottleneckHours: number;
     conversionRate: number;
   };
 }
 
-function getLast30Days(): { day: string; date: string; dateObj: Date }[] {
-  const days: { day: string; date: string; dateObj: Date }[] = [];
-  const now = new Date();
-  
+function getLast30Days(): { day: string; date: string }[] {
+  const days: { day: string; date: string }[] = [];
   for (let i = 29; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    date.setHours(0, 0, 0, 0);
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
     days.push({
-      day: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      date: date.toISOString().split('T')[0],
-      dateObj: date,
+      day: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: d.toISOString().split('T')[0],
     });
   }
   return days;
 }
 
-function isHVC(candidate: Candidate): boolean {
-  return candidate.hotCandidate || candidate.priority === '1st' || candidate.stratification === 'H';
-}
-
-function hasInterview(candidate: Candidate): boolean {
-  const interviewStatus = candidate.interviewStatus;
-  if (!interviewStatus) return false;
-  
-  const positiveStatuses = ['Scheduled', 'Completed', 'Phone Screen', 'On-site', 'Final Round', 'Offer'];
-  return positiveStatuses.some(s => interviewStatus.toLowerCase().includes(s.toLowerCase()));
-}
-
 /**
- * Fetches CEO metrics - 5 key graphs for last 30 days
+ * Fetches CEO metrics - simplified for clarity
  */
 export async function getCEOMetrics(): Promise<CEOMetrics> {
   const notion = getNotionClient();
@@ -365,7 +323,7 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Fetch ALL candidates from last 30 days (with pagination)
+  // Fetch ALL candidates with pagination
   const allPages: PageObjectResponse[] = [];
   let hasMore = true;
   let startCursor: string | undefined = undefined;
@@ -375,9 +333,7 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
       database_id: databaseId,
       filter: {
         property: 'Date Added',
-        created_time: {
-          on_or_after: thirtyDaysAgo.toISOString(),
-        },
+        created_time: { on_or_after: thirtyDaysAgo.toISOString() },
       },
       start_cursor: startCursor,
       page_size: 100,
@@ -387,132 +343,61 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
       (page): page is PageObjectResponse => page.object === 'page' && 'properties' in page
     );
     allPages.push(...pages);
-
     hasMore = response.has_more;
     startCursor = response.next_cursor ?? undefined;
   }
 
   const allCandidates = allPages.map(mapPageToCandidate);
-
   const days = getLast30Days();
 
-  // 1. Response Velocity - Avg "Hours Since Last Activity" for ALL candidates added each day
-  const responseVelocity: ResponseVelocityMetric[] = days.map(({ day, date }) => {
-    const dayCandidates = allCandidates.filter(c => {
-      const addedDate = c.dateAdded?.split('T')[0];
-      return addedDate === date && c.hoursSinceLastActivity !== null;
-    });
+  // Daily data
+  const dailyData: DayData[] = days.map(({ day, date }) => {
+    const dayCandidates = allCandidates.filter(c => c.dateAdded?.split('T')[0] === date);
+    const verifiedOnDay = allCandidates.filter(c => c.cvVerifiedByLynn?.split('T')[0] === date);
     
-    const avgHours = dayCandidates.length > 0
-      ? dayCandidates.reduce((sum, c) => sum + (c.hoursSinceLastActivity || 0), 0) / dayCandidates.length
+    const hoursValues = dayCandidates
+      .filter(c => c.hoursSinceLastActivity !== null)
+      .map(c => c.hoursSinceLastActivity!);
+    
+    const avgHours = hoursValues.length > 0
+      ? hoursValues.reduce((a, b) => a + b, 0) / hoursValues.length
       : 0;
-    
-    return { day, date, hours: Math.round(avgHours * 10) / 10, count: dayCandidates.length };
+
+    return {
+      day,
+      date,
+      newCandidates: dayCandidates.length,
+      verified: verifiedOnDay.length,
+      avgResponseHours: Math.round(avgHours),
+    };
   });
 
-  // 2. Throughput - New candidates vs Processed per day (ALL candidates)
-  const throughput: ThroughputMetric[] = days.map(({ day, date }) => {
-    const newHVCs = allCandidates.filter(c => {
-      const addedDate = c.dateAdded?.split('T')[0];
-      return addedDate === date;
-    }).length;
-    
-    const processed = allCandidates.filter(c => {
-      const verifiedDate = c.cvVerifiedByLynn?.split('T')[0];
-      return verifiedDate === date;
-    }).length;
-    
-    return { day, date, newHVCs, processed };
-  });
-
-  // 3. AI Accuracy - Delta between AI Score and Human Score
-  const candidatesWithBothScores = allCandidates.filter(
-    c => c.aiScore !== null && c.humanScore !== null
-  );
+  // Summary
+  const totalNew = dailyData.reduce((sum, d) => sum + d.newCandidates, 0);
+  const totalVerified = dailyData.reduce((sum, d) => sum + d.verified, 0);
   
-  const aiAccuracy: AIAccuracyMetric[] = days.map(({ day, date }) => {
-    const dayCandidates = candidatesWithBothScores.filter(c => {
-      const addedDate = c.dateAdded?.split('T')[0];
-      return addedDate === date;
-    });
-    
-    const avgDelta = dayCandidates.length > 0
-      ? dayCandidates.reduce((sum, c) => sum + Math.abs((c.aiScore || 0) - (c.humanScore || 0)), 0) / dayCandidates.length
-      : 0;
-    
-    return { day, date, delta: Math.round(avgDelta * 100) / 100, count: dayCandidates.length };
-  });
-
-  // 4. Manager Bottlenecks - Time between AI Processed and CV Verified
-  const candidatesWithReviewTimes = allCandidates.filter(
-    c => c.aiProcessedAt && c.cvVerifiedByLynn
-  );
-  
-  const managerBottlenecks: BottleneckMetric[] = days.map(({ day, date }) => {
-    const dayCandidates = candidatesWithReviewTimes.filter(c => {
-      const verifiedDate = c.cvVerifiedByLynn?.split('T')[0];
-      return verifiedDate === date;
-    });
-    
-    const avgHours = dayCandidates.length > 0
-      ? dayCandidates.reduce((sum, c) => {
-          const aiTime = new Date(c.aiProcessedAt!).getTime();
-          const humanTime = new Date(c.cvVerifiedByLynn!).getTime();
-          return sum + (humanTime - aiTime) / (1000 * 60 * 60);
-        }, 0) / dayCandidates.length
-      : 0;
-    
-    return { day, date, hours: Math.round(avgHours * 10) / 10, count: dayCandidates.length };
-  });
-
-  // 5. HVC Quality - Conversion rate to interview
-  const hvcQuality: ConversionMetric[] = days.map(({ day, date, dateObj }) => {
-    const hvcsBefore = allCandidates.filter(c => {
-      const addedDate = new Date(c.dateAdded || '');
-      return addedDate <= dateObj && isHVC(c);
-    });
-    
-    const total = hvcsBefore.length;
-    const converted = hvcsBefore.filter(c => hasInterview(c)).length;
-    const rate = total > 0 ? (converted / total) * 100 : 0;
-    
-    return { day, date, rate: Math.round(rate * 10) / 10, total, converted };
-  });
-
-  // Calculate summary stats
-  const hvcCandidates = allCandidates.filter(c => isHVC(c));
-  const avgResponseHours = hvcCandidates.length > 0
-    ? hvcCandidates.reduce((sum, c) => sum + (c.hoursSinceLastActivity || 0), 0) / hvcCandidates.length
+  const allHours = allCandidates
+    .filter(c => c.hoursSinceLastActivity !== null)
+    .map(c => c.hoursSinceLastActivity!);
+  const avgResponseHours = allHours.length > 0
+    ? Math.round(allHours.reduce((a, b) => a + b, 0) / allHours.length)
     : 0;
-  
-  const totalNew = throughput.reduce((sum, d) => sum + d.newHVCs, 0);
-  const totalProcessed = throughput.reduce((sum, d) => sum + d.processed, 0);
-  
-  const validAiAccuracy = aiAccuracy.filter(d => d.count > 0);
-  const firstWeekDelta = validAiAccuracy.slice(0, 7).reduce((sum, d) => sum + d.delta, 0) / Math.max(1, validAiAccuracy.slice(0, 7).length);
-  const lastWeekDelta = validAiAccuracy.slice(-7).reduce((sum, d) => sum + d.delta, 0) / Math.max(1, validAiAccuracy.slice(-7).length);
-  const aiImprovement = firstWeekDelta > 0 ? ((firstWeekDelta - lastWeekDelta) / firstWeekDelta) * 100 : 0;
-  
-  const validBottlenecks = managerBottlenecks.filter(d => d.count > 0);
-  const avgBottleneckHours = validBottlenecks.length > 0
-    ? validBottlenecks.reduce((sum, d) => sum + d.hours, 0) / validBottlenecks.length
+
+  const withInterview = allCandidates.filter(c => 
+    c.interviewStatus && !['', 'None', 'N/A'].includes(c.interviewStatus)
+  ).length;
+  const conversionRate = allCandidates.length > 0 
+    ? Math.round((withInterview / allCandidates.length) * 100) 
     : 0;
-  
-  const latestConversion = hvcQuality[hvcQuality.length - 1];
-  const conversionRate = latestConversion?.rate || 0;
 
   return {
-    responseVelocity,
-    throughput,
-    aiAccuracy,
-    managerBottlenecks,
-    hvcQuality,
+    dailyData,
     summary: {
-      avgResponseHours: Math.round(avgResponseHours),
-      netFlow: totalProcessed - totalNew,
-      aiImprovement: Math.round(aiImprovement),
-      avgBottleneckHours: Math.round(avgBottleneckHours),
-      conversionRate: Math.round(conversionRate),
+      totalNew,
+      totalVerified,
+      backlog: totalNew - totalVerified,
+      avgResponseHours,
+      conversionRate,
     },
   };
 }
