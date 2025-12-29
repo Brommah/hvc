@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/candidates",
+      "destination": "/api/candidates"
+    },
+    {
+      "source": "/api/pending-review",
+      "destination": "/api/pending-review"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+
