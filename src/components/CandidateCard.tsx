@@ -19,11 +19,11 @@ function formatDate(dateStr: string | null): string {
  */
 export function CandidateCard({ candidate }: CandidateCardProps) {
   const hours = candidate.hoursSinceLastActivity;
-  const urgencyClass = hours !== null && hours > 48 
+  const urgencyBorder = hours !== null && hours > 48 
     ? 'border-l-red-500' 
     : hours !== null && hours > 24 
       ? 'border-l-amber-500' 
-      : 'border-l-emerald-500';
+      : 'border-l-green-500';
 
   const handleCopyLinkedIn = async () => {
     if (candidate.linkedinProfile) {
@@ -32,63 +32,57 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
   };
 
   return (
-    <div className={`bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 border-l-4 ${urgencyClass} hover:bg-slate-800/70 transition-colors`}>
+    <div className={`bg-white border border-gray-200 p-4 border-l-4 ${urgencyBorder} hover:shadow-sm transition-shadow`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-base font-semibold text-slate-100 truncate">
+            <h3 className="text-sm font-semibold text-gray-900 truncate">
               {candidate.name}
             </h3>
             {candidate.hotCandidate && (
-              <span className="text-orange-400 text-sm" title="Hot Candidate">🔥</span>
+              <span className="text-sm" title="Hot Candidate">🔥</span>
             )}
           </div>
           
-          <p className="text-sm text-slate-400 mt-0.5 truncate">
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
             {candidate.role || 'No role specified'}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-gray-400 mt-1">
             Applied: {formatDate(candidate.dateAdded)}
           </p>
           
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-1 mt-2">
             <StatusBadge status={candidate.status} />
             {candidate.priority && (
               <StatusBadge status={candidate.priority} variant="priority" />
-            )}
-            {candidate.interviewStatus && (
-              <StatusBadge status={candidate.interviewStatus} />
             )}
           </div>
         </div>
 
         <div className="text-right shrink-0">
-          <div className="text-2xl font-bold text-slate-100 font-mono">
+          <div className={`text-xl font-semibold ${hours !== null && hours > 48 ? 'text-red-600' : hours !== null && hours > 24 ? 'text-amber-600' : 'text-gray-900'}`}>
             {hours !== null ? `${Math.round(hours)}h` : '—'}
           </div>
-          <div className="text-xs text-slate-500 uppercase tracking-wide">
+          <div className="text-xs text-gray-400 uppercase tracking-wide">
             overdue
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-700/50">
+      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
         <a
           href={candidate.notionUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded transition-colors"
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h13A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-15zm2 0v2h2v-2H6zm4 0v2h8v-2h-8zm-4 4v2h2v-2H6zm4 0v2h8v-2h-8zm-4 4v2h2v-2H6zm4 0v2h8v-2h-8z"/>
-          </svg>
           Open in Notion
         </a>
         
         {candidate.linkedinProfile && (
           <button
             onClick={handleCopyLinkedIn}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 rounded transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors"
             title="Copy LinkedIn URL"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -100,16 +94,15 @@ export function CandidateCard({ candidate }: CandidateCardProps) {
       </div>
 
       {(candidate.aiScore !== null || candidate.humanScore !== null) && (
-        <div className="flex gap-4 mt-3 pt-3 border-t border-slate-700/30 text-xs text-slate-400">
+        <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
           {candidate.aiScore !== null && (
-            <span>AI: <span className="text-slate-200 font-medium">{candidate.aiScore}</span></span>
+            <span>AI: <span className="text-gray-900 font-medium">{candidate.aiScore}</span></span>
           )}
           {candidate.humanScore !== null && (
-            <span>Human: <span className="text-slate-200 font-medium">{candidate.humanScore}</span></span>
+            <span>Human: <span className="text-gray-900 font-medium">{candidate.humanScore}</span></span>
           )}
         </div>
       )}
     </div>
   );
 }
-

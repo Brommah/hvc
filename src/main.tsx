@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { PendingReview } from './pages/PendingReview.tsx'
+import { CEODashboard } from './pages/CEODashboard.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/pending-review" element={<PendingReview />} />
+        <Route path="/ceo" element={<CEODashboard />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

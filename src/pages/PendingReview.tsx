@@ -27,11 +27,11 @@ function formatDuration(hours: number | null): string {
  * Get urgency class based on hours waiting
  */
 function getUrgencyClass(hours: number | null): string {
-  if (hours === null) return 'text-slate-400';
-  if (hours > 72) return 'text-red-400 font-bold animate-pulse';
-  if (hours > 48) return 'text-red-400 font-semibold';
-  if (hours > 24) return 'text-amber-400';
-  return 'text-emerald-400';
+  if (hours === null) return 'text-gray-400';
+  if (hours > 72) return 'text-red-600 font-bold';
+  if (hours > 48) return 'text-red-500 font-semibold';
+  if (hours > 24) return 'text-amber-500';
+  return 'text-green-500';
 }
 
 /**
@@ -61,17 +61,16 @@ export function PendingReview() {
   };
 
   return (
-    <div className="min-h-screen text-slate-100">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* Header */}
-      <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-3">
-                <span className="text-2xl">🔍</span>
+              <h1 className="text-xl font-semibold text-gray-900">
                 Pending Human Review
               </h1>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Candidates reviewed by AI, awaiting human verification
               </p>
             </div>
@@ -79,19 +78,25 @@ export function PendingReview() {
             <div className="flex items-center gap-4 text-sm">
               <a
                 href="/"
-                className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                className="text-gray-500 hover:text-gray-900 transition-colors"
               >
-                ← Back to HVC Dashboard
+                ← HVC Dashboard
               </a>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500">Last sync:</span>
-                <span className="text-slate-300 font-mono">{formatLastUpdated(lastUpdated)}</span>
+              <a
+                href="/ceo"
+                className="text-gray-500 hover:text-gray-900 transition-colors"
+              >
+                CEO Insights
+              </a>
+              <div className="flex items-center gap-2 text-gray-400">
+                <span>Last sync:</span>
+                <span className="text-gray-600 font-medium">{formatLastUpdated(lastUpdated)}</span>
               </div>
               
               <button
                 onClick={() => refetch()}
                 disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -103,27 +108,27 @@ export function PendingReview() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-6 py-6">
         {/* Stats Bar */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
-            <div className="text-3xl font-bold text-slate-100">{stats.total}</div>
-            <div className="text-sm text-slate-400 uppercase tracking-wide">Pending Review</div>
+          <div className="bg-white border border-gray-200 p-4">
+            <div className="text-3xl font-semibold text-gray-900">{stats.total}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Pending Review</div>
           </div>
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-            <div className="text-3xl font-bold text-red-400">{stats.critical}</div>
-            <div className="text-sm text-red-400/70 uppercase tracking-wide">Critical (&gt;48h)</div>
+          <div className="bg-white border border-red-200 p-4">
+            <div className="text-3xl font-semibold text-red-600">{stats.critical}</div>
+            <div className="text-xs text-red-500 uppercase tracking-wide mt-1">Critical (&gt;48h)</div>
           </div>
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-            <div className="text-3xl font-bold text-amber-400">{formatDuration(stats.avgHours)}</div>
-            <div className="text-sm text-amber-400/70 uppercase tracking-wide">Avg. Wait Time</div>
+          <div className="bg-white border border-amber-200 p-4">
+            <div className="text-3xl font-semibold text-amber-600">{formatDuration(stats.avgHours)}</div>
+            <div className="text-xs text-amber-500 uppercase tracking-wide mt-1">Avg. Wait Time</div>
           </div>
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 text-red-400">
+          <div className="bg-red-50 border border-red-200 p-4 mb-6">
+            <div className="flex items-center gap-2 text-red-600">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
@@ -131,59 +136,59 @@ export function PendingReview() {
               </svg>
               <span className="font-medium">Error loading candidates</span>
             </div>
-            <p className="text-sm text-red-400/70 mt-1">{error}</p>
+            <p className="text-sm text-red-500 mt-1">{error}</p>
           </div>
         )}
 
         {/* Loading State */}
         {loading && candidates.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
-            <svg className="w-12 h-12 text-indigo-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-12 h-12 text-gray-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <p className="text-slate-400 mt-4">Loading pending reviews...</p>
+            <p className="text-gray-500 mt-4">Loading pending reviews...</p>
           </div>
         )}
 
         {/* Table */}
         {!loading || candidates.length > 0 ? (
-          <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg overflow-hidden">
+          <div className="bg-white border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-800/50 border-b border-slate-700/50">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Candidate</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">AI Reviewed</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Waiting</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">AI Score</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Reviewed</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waiting</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Score</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700/30">
+                <tbody className="divide-y divide-gray-100">
                   {candidates.map((candidate) => (
-                    <tr key={candidate.id} className="hover:bg-slate-800/30 transition-colors">
+                    <tr key={candidate.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-100 font-medium">{candidate.name}</span>
+                          <span className="text-gray-900 font-medium">{candidate.name}</span>
                           {candidate.hotCandidate && <span title="Hot Candidate">🔥</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400">
+                      <td className="px-4 py-3 text-sm text-gray-500">
                         {candidate.role || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                         {formatDate(candidate.aiProcessedAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`font-mono text-lg ${getUrgencyClass(candidate.hoursSinceAiReview)}`}>
+                        <span className={`font-medium text-lg ${getUrgencyClass(candidate.hoursSinceAiReview)}`}>
                           {formatDuration(candidate.hoursSinceAiReview)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         {candidate.aiScore !== null ? (
-                          <span className="text-slate-200 font-medium">{candidate.aiScore}</span>
+                          <span className="text-gray-900 font-medium">{candidate.aiScore}</span>
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -195,7 +200,7 @@ export function PendingReview() {
                             href={candidate.notionUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-700 rounded transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
                             title="Review in Notion"
                           >
                             Review
@@ -203,17 +208,6 @@ export function PendingReview() {
                               <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                             </svg>
                           </a>
-                          {candidate.linkedinProfile && (
-                            <button
-                              onClick={() => navigator.clipboard.writeText(candidate.linkedinProfile!)}
-                              className="p-1.5 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 rounded transition-colors"
-                              title="Copy LinkedIn URL"
-                            >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                              </svg>
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -222,7 +216,7 @@ export function PendingReview() {
               </table>
               
               {candidates.length === 0 && !loading && (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-gray-500">
                   <p className="text-lg">No candidates pending human review</p>
                   <p className="text-sm mt-1">All AI-reviewed candidates have been verified ✓</p>
                 </div>
@@ -232,11 +226,10 @@ export function PendingReview() {
         ) : null}
 
         {/* Footer */}
-        <footer className="mt-8 text-center text-xs text-slate-500">
+        <footer className="mt-8 text-center text-xs text-gray-400">
           <p>Sorted by time waiting (longest first) • Auto-refreshes every 5 minutes</p>
         </footer>
       </main>
     </div>
   );
 }
-

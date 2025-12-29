@@ -66,7 +66,7 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
 
   const SortHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <th
-      className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-200 transition-colors select-none"
+      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-900 transition-colors select-none"
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center gap-1">
@@ -81,11 +81,11 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
   );
 
   const getUrgencyClass = (hours: number | null): string => {
-    if (hours === null) return 'text-slate-400';
-    if (hours > 72) return 'text-red-400 font-bold animate-pulse';
-    if (hours > 48) return 'text-red-400 font-semibold';
-    if (hours > 24) return 'text-amber-400';
-    return 'text-emerald-400';
+    if (hours === null) return 'text-gray-400';
+    if (hours > 72) return 'text-red-600 font-bold';
+    if (hours > 48) return 'text-red-500 font-semibold';
+    if (hours > 24) return 'text-amber-500';
+    return 'text-green-500';
   };
 
   const handleCopyLinkedIn = async (url: string) => {
@@ -95,31 +95,31 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-slate-800/50 border-b border-slate-700/50">
+        <thead className="bg-gray-50 border-b border-gray-200">
           <tr>
             <SortHeader field="name">Candidate</SortHeader>
             <SortHeader field="role">Role</SortHeader>
             <SortHeader field="dateAdded">Applied</SortHeader>
-            <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             <SortHeader field="priority">Priority</SortHeader>
             <SortHeader field="hours">Hours Overdue</SortHeader>
-            <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Scores</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scores</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-700/30">
+        <tbody className="divide-y divide-gray-100">
           {sortedCandidates.map((candidate) => (
-            <tr key={candidate.id} className="hover:bg-slate-800/30 transition-colors">
+            <tr key={candidate.id} className="hover:bg-gray-50 transition-colors">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-100 font-medium">{candidate.name}</span>
+                  <span className="text-gray-900 font-medium">{candidate.name}</span>
                   {candidate.hotCandidate && <span title="Hot Candidate">🔥</span>}
                 </div>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-400">
+              <td className="px-4 py-3 text-sm text-gray-500">
                 {candidate.role || '—'}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-400 whitespace-nowrap">
+              <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                 {formatDate(candidate.dateAdded)}
               </td>
               <td className="px-4 py-3">
@@ -134,13 +134,13 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
                 <StatusBadge status={candidate.priority} variant="priority" />
               </td>
               <td className="px-4 py-3">
-                <span className={`font-mono text-lg ${getUrgencyClass(candidate.hoursSinceLastActivity)}`}>
+                <span className={`font-medium text-lg ${getUrgencyClass(candidate.hoursSinceLastActivity)}`}>
                   {candidate.hoursSinceLastActivity !== null 
                     ? `${Math.round(candidate.hoursSinceLastActivity)}h`
                     : '—'}
                 </span>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-400">
+              <td className="px-4 py-3 text-sm text-gray-500">
                 {candidate.aiScore !== null && <span className="mr-3">AI: {candidate.aiScore}</span>}
                 {candidate.humanScore !== null && <span>H: {candidate.humanScore}</span>}
                 {candidate.aiScore === null && candidate.humanScore === null && '—'}
@@ -151,17 +151,17 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
                     href={candidate.notionUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-1.5 text-slate-400 hover:text-slate-100 hover:bg-slate-700/50 rounded transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                     title="Open in Notion"
                   >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                     </svg>
                   </a>
                   {candidate.linkedinProfile && (
                     <button
                       onClick={() => handleCopyLinkedIn(candidate.linkedinProfile!)}
-                      className="p-1.5 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 rounded transition-colors"
+                      className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                       title="Copy LinkedIn URL"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -177,7 +177,7 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
       </table>
       
       {sortedCandidates.length === 0 && (
-        <div className="text-center py-12 text-slate-400">
+        <div className="text-center py-12 text-gray-500">
           <p className="text-lg">No overdue high-value candidates</p>
           <p className="text-sm mt-1">All HVCs have been followed up within 24 hours ✓</p>
         </div>
@@ -185,4 +185,3 @@ export function CandidateTable({ candidates }: CandidateTableProps) {
     </div>
   );
 }
-
