@@ -1,17 +1,19 @@
 {
   "rewrites": [
     {
-      "source": "/api/candidates",
-      "destination": "/api/candidates"
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
     },
     {
-      "source": "/api/pending-review",
-      "destination": "/api/pending-review"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.ts": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }
 
