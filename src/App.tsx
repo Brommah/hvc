@@ -117,6 +117,19 @@ function App() {
           </div>
         </div>
 
+        {/* Metrics Callout */}
+        <div className="bg-blue-50 border border-blue-200 px-4 py-3 mb-6 flex items-start gap-3">
+          <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4M12 8h.01" />
+          </svg>
+          <div className="text-sm text-blue-800">
+            <span className="font-medium">Hours Overdue</span> is calculated from the Notion field "Hours Since Last Activity" — 
+            time elapsed since the candidate's last recorded communication or status update. 
+            Candidates shown here are <span className="font-medium">Hot 🔥</span>, <span className="font-medium">1st Priority</span>, or <span className="font-medium">H Stratification</span> with &gt;24h since last activity.
+          </div>
+        </div>
+
         {/* Filters & View Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">

@@ -34,6 +34,18 @@ function getPropertyValue(properties: Record<string, unknown>, key: string): unk
   }
 }
 
+// Interview statuses (candidates who have reached interview stage)
+const INTERVIEW_STATUSES = [
+  'Initial Evaluation Call',
+  'CEO Interview',
+  'Tech Test Task',
+  'Collab Writing',
+  'Trial Period',
+  'Exploratory Call',
+  'Tech Interview',
+  'Accepted',
+];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -67,42 +79,150 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       startCursor = response.next_cursor ?? undefined;
     }
 
-    // Parse all candidates
-    const candidates = allPages.map(page => ({
-      id: page.id,
-      name: (getPropertyValue(page.properties, 'Name') as string) || 'Unknown',
-      role: (getPropertyValue(page.properties, 'Role') as string) || 'Unknown',
-      status: getPropertyValue(page.properties, 'Status') as string | null,
-      aiScore: getPropertyValue(page.properties, 'AI Score') as number | null,
-      dateAdded: (getPropertyValue(page.properties, 'Date Added') as string) || page.created_time,
-      notionUrl: page.url,
-    }));
-
-    // === APPLICATIONS BY ROLE PER DAY ===
-    const rolesByDay: Record<string, Record<string, number>> = {};
-    const allRoles = new Set<string>();
-
-    candidates.forEach(c => {
-      const day = c.dateAdded?.split('T')[0];
-      if (!day) return;
-      
-      const role = c.role || 'Unknown';
-      allRoles.add(role);
-      
-      if (!rolesByDay[day]) rolesByDay[day] = {};
-      rolesByDay[day][role] = (rolesByDay[day][role] || 0) + 1;
+    // Parse all candidates with full data
+    const candidates = allPages.map(page => {
+      const dateAdded = (getPropertyValue(page.properties, 'Date Added') as string) || page.created_time;
+      return {
+        id: page.id,
+        name: (getPropertyValue(page.properties, 'Name') as string) || 'Unknown',
+        role: (getPropertyValue(page.properties, 'Role') as string) || 'Unknown',
+        status: getPropertyValue(page.properties, 'Status') as string | null,
+        interviewStatus: getPropertyValue(page.properties, 'Interview Status') as string | null,
+        aiScore: getPropertyValue(page.properties, 'AI Score') as number | null,
+        humanScore: getPropertyValue(page.properties, 'Human Score') as number | null,
+        hoursSinceLastActivity: getPropertyValue(page.properties, 'Hours Since Last Activity') as number | null,
+        dateAdded,
+        dateAddedDay: dateAdded?.split('T')[0] || null,
+        notionUrl: page.url,
+      };
     });
 
-    // Build sorted daily data
-    const days = Object.keys(rolesByDay).sort();
-    const applicationsByDay = days.map(day => ({
-      date: day,
-      total: Object.values(rolesByDay[day]).reduce((a, b) => a + b, 0),
-      ...rolesByDay[day],
+    // Generate all 30 days
+    const allDays: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      allDays.push(d.toISOString().split('T')[0]);
+    }
+
+    // =============================================
+    // GRAPH 1: Time to Interview (Pipeline Velocity)
+    // For candidates who reached interview, avg days from Date Added
+    // =============================================
+    const candidatesWithInterview = candidates.filter(c => 
+      c.status && INTERVIEW_STATUSES.includes(c.status)
+    );
+    
+    // Group by week for cleaner trend (day added → reached interview)
+    const timeToInterviewByWeek: Record<string, { totalDays: number; count: number }> = {};
+    
+    candidatesWithInterview.forEach(c => {
+      if (!c.dateAddedDay) return;
+      // Estimate time to interview based on hours since last activity
+      // (This is approximate - we don't have exact interview date)
+      const daysInSystem = c.hoursSinceLastActivity ? c.hoursSinceLastActivity / 24 : 0;
+      
+      // Get week start for this candidate
+      const weekStart = getWeekStart(c.dateAddedDay);
+      if (!timeToInterviewByWeek[weekStart]) {
+        timeToInterviewByWeek[weekStart] = { totalDays: 0, count: 0 };
+      }
+      timeToInterviewByWeek[weekStart].totalDays += daysInSystem;
+      timeToInterviewByWeek[weekStart].count += 1;
+    });
+
+    const timeToInterviewTrend = Object.keys(timeToInterviewByWeek).sort().map(week => ({
+      week,
+      avgDays: Math.round(timeToInterviewByWeek[week].totalDays / timeToInterviewByWeek[week].count),
+      count: timeToInterviewByWeek[week].count,
     }));
 
-    // === HR BACKLOG ===
-    // AI Score >= 7 AND Status in (HR Screening, HM CV Screening)
+    // =============================================
+    // GRAPH 2: AI vs Human Delta (for HVCs only)
+    // For AI Score >= 7, track Human Score - AI Score per day
+    // =============================================
+    const hvcsWithBothScores = candidates.filter(c => 
+      c.aiScore !== null && 
+      c.aiScore >= 7 && 
+      c.humanScore !== null
+    );
+
+    const aiHumanDeltaByDay: Record<string, { totalDelta: number; count: number }> = {};
+    
+    hvcsWithBothScores.forEach(c => {
+      if (!c.dateAddedDay || c.aiScore === null || c.humanScore === null) return;
+      
+      if (!aiHumanDeltaByDay[c.dateAddedDay]) {
+        aiHumanDeltaByDay[c.dateAddedDay] = { totalDelta: 0, count: 0 };
+      }
+      aiHumanDeltaByDay[c.dateAddedDay].totalDelta += (c.humanScore - c.aiScore);
+      aiHumanDeltaByDay[c.dateAddedDay].count += 1;
+    });
+
+    const aiVsHumanTrend = allDays.map(day => {
+      const data = aiHumanDeltaByDay[day];
+      return {
+        date: day,
+        avgDelta: data ? Math.round((data.totalDelta / data.count) * 10) / 10 : null,
+        count: data?.count || 0,
+      };
+    }).filter(d => d.count > 0); // Only days with data
+
+    // =============================================
+    // GRAPH 3: Stage Dwell Time (Where candidates get stuck)
+    // Avg Hours Since Last Activity by current Status
+    // =============================================
+    const statusDwellTime: Record<string, { totalHours: number; count: number }> = {};
+    
+    candidates.forEach(c => {
+      if (!c.status || c.hoursSinceLastActivity === null) return;
+      
+      if (!statusDwellTime[c.status]) {
+        statusDwellTime[c.status] = { totalHours: 0, count: 0 };
+      }
+      statusDwellTime[c.status].totalHours += c.hoursSinceLastActivity;
+      statusDwellTime[c.status].count += 1;
+    });
+
+    const stageDwellTime = Object.entries(statusDwellTime)
+      .map(([status, data]) => ({
+        status,
+        avgHours: Math.round(data.totalHours / data.count),
+        count: data.count,
+      }))
+      .sort((a, b) => b.avgHours - a.avgHours); // Worst bottlenecks first
+
+    // =============================================
+    // GRAPH 4: Response Time Trend
+    // Avg Hours Since Last Activity for candidates added each day
+    // =============================================
+    const responseTimeByDay: Record<string, { totalHours: number; count: number }> = {};
+    
+    candidates.forEach(c => {
+      if (!c.dateAddedDay || c.hoursSinceLastActivity === null) return;
+      
+      if (!responseTimeByDay[c.dateAddedDay]) {
+        responseTimeByDay[c.dateAddedDay] = { totalHours: 0, count: 0 };
+      }
+      responseTimeByDay[c.dateAddedDay].totalHours += c.hoursSinceLastActivity;
+      responseTimeByDay[c.dateAddedDay].count += 1;
+    });
+
+    const responseTimeTrend = allDays.map(day => {
+      const data = responseTimeByDay[day];
+      return {
+        date: day,
+        avgHours: data ? Math.round(data.totalHours / data.count) : null,
+        count: data?.count || 0,
+      };
+    });
+
+    // =============================================
+    // SUMMARY STATS
+    // =============================================
+    const totalApplications = candidates.length;
+    
+    // HR Backlog (AI >= 7 in HR/HM CV Screening)
     const hrBacklogStatuses = ['HR Screening', 'HM CV Screening'];
     const hrBacklog = candidates.filter(c => 
       c.aiScore !== null && 
@@ -111,29 +231,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hrBacklogStatuses.includes(c.status)
     );
 
-    // HR Backlog by day (when they entered the backlog)
-    const backlogByDay: Record<string, number> = {};
-    hrBacklog.forEach(c => {
-      const day = c.dateAdded?.split('T')[0];
-      if (!day) return;
-      backlogByDay[day] = (backlogByDay[day] || 0) + 1;
-    });
+    // Overall avg response time
+    const allHours = candidates
+      .filter(c => c.hoursSinceLastActivity !== null)
+      .map(c => c.hoursSinceLastActivity!);
+    const avgResponseHours = allHours.length > 0
+      ? Math.round(allHours.reduce((a, b) => a + b, 0) / allHours.length)
+      : 0;
 
-    const backlogTrend = days.map(day => ({
-      date: day,
-      count: backlogByDay[day] || 0,
-    }));
-
-    // Summary
-    const totalApplications = candidates.length;
-    const totalHrBacklog = hrBacklog.length;
-
-    // Role breakdown for applications
+    // Role breakdown
     const roleBreakdown: Record<string, number> = {};
     candidates.forEach(c => {
       const role = c.role || 'Unknown';
       roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
     });
+
+    // Applications by day for the stacked chart
+    const rolesByDay: Record<string, Record<string, number>> = {};
+    const allRoles = new Set<string>();
+    candidates.forEach(c => {
+      if (!c.dateAddedDay) return;
+      const role = c.role || 'Unknown';
+      allRoles.add(role);
+      if (!rolesByDay[c.dateAddedDay]) rolesByDay[c.dateAddedDay] = {};
+      rolesByDay[c.dateAddedDay][role] = (rolesByDay[c.dateAddedDay][role] || 0) + 1;
+    });
+
+    const applicationsByDay = allDays.map(day => ({
+      date: day,
+      total: Object.values(rolesByDay[day] || {}).reduce((a, b) => a + b, 0),
+      ...(rolesByDay[day] || {}),
+    }));
 
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
     return res.status(200).json({
@@ -141,10 +269,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       data: {
         summary: {
           totalApplications,
-          totalHrBacklog,
+          totalHrBacklog: hrBacklog.length,
+          avgResponseHours,
+          candidatesAtInterview: candidatesWithInterview.length,
+          hvcsWithScores: hvcsWithBothScores.length,
         },
+        // Graph 1: Time to Interview
+        timeToInterviewTrend,
+        // Graph 2: AI vs Human Delta
+        aiVsHumanTrend,
+        // Graph 3: Stage Dwell Time
+        stageDwellTime,
+        // Graph 4: Response Time Trend
+        responseTimeTrend,
+        // Existing data
         applicationsByDay,
-        backlogTrend,
         roles: Array.from(allRoles).sort(),
         roleBreakdown,
         hrBacklogCandidates: hrBacklog.map(c => ({
@@ -165,4 +304,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
+}
+
+function getWeekStart(dateStr: string): string {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  date.setDate(diff);
+  return date.toISOString().split('T')[0];
 }

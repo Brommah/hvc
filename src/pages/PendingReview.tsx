@@ -146,7 +146,7 @@ export function PendingReview() {
             <svg className="w-12 h-12 text-gray-400 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <p className="text-gray-500 mt-4">Loading pending reviews...</p>
+            <p className="text-gray-500 mt-4">Loading screening backlog...</p>
           </div>
         )}
 
@@ -159,10 +159,10 @@ export function PendingReview() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Reviewed</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waiting</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In Pipeline</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Score</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -179,7 +179,7 @@ export function PendingReview() {
                         {candidate.role || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                        {formatDate(candidate.aiProcessedAt)}
+                        {formatDate(candidate.dateAdded)}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`font-medium text-lg ${getUrgencyClass(candidate.hoursSinceAiReview)}`}>
@@ -217,8 +217,8 @@ export function PendingReview() {
               
               {candidates.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500">
-                  <p className="text-lg">No candidates pending human review</p>
-                  <p className="text-sm mt-1">All AI-reviewed candidates have been verified ✓</p>
+                  <p className="text-lg">No candidates in screening</p>
+                  <p className="text-sm mt-1">HR Screening & HM Screening queues are empty ✓</p>
                 </div>
               )}
             </div>
@@ -227,7 +227,7 @@ export function PendingReview() {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-xs text-gray-400">
-          <p>Sorted by time waiting (longest first) • Auto-refreshes every 5 minutes</p>
+          <p>Sorted by date added (oldest first) • Auto-refreshes every 5 minutes</p>
         </footer>
       </main>
     </div>
