@@ -118,23 +118,23 @@ export function CEODashboard() {
         <div className="grid grid-cols-4 gap-6 mb-12">
           <div className="border border-gray-100 p-6">
             <div className="text-4xl font-light text-gray-900">{stats?.totalNew || 0}</div>
-            <div className="text-sm text-gray-400 mt-2">New Candidates</div>
+            <div className="text-sm text-gray-400 mt-2">Applications (30d)</div>
           </div>
           <div className="border border-gray-100 p-6">
             <div className="text-4xl font-light text-gray-900">{stats?.totalVerified || 0}</div>
-            <div className="text-sm text-gray-400 mt-2">Verified</div>
+            <div className="text-sm text-gray-400 mt-2">Reviewed by Lynn</div>
           </div>
           <div className="border border-gray-100 p-6">
             <div className={`text-4xl font-light ${(stats?.backlog || 0) > 50 ? 'text-red-500' : 'text-gray-900'}`}>
               {stats?.backlog || 0}
             </div>
-            <div className="text-sm text-gray-400 mt-2">Backlog</div>
+            <div className="text-sm text-gray-400 mt-2">Awaiting Review</div>
           </div>
           <div className="border border-gray-100 p-6">
             <div className={`text-4xl font-light ${(stats?.avgResponseHours || 0) > 24 ? 'text-red-500' : 'text-green-600'}`}>
               {stats?.avgResponseHours || 0}h
             </div>
-            <div className="text-sm text-gray-400 mt-2">Avg Response</div>
+            <div className="text-sm text-gray-400 mt-2">Avg Wait Time</div>
           </div>
         </div>
 
@@ -225,13 +225,13 @@ export function CEODashboard() {
             <div>
               <p className="text-sm text-gray-900 font-medium">
                 {(stats?.backlog || 0) > 100 
-                  ? 'We're falling behind — backlog is growing'
+                  ? 'Review queue is piling up'
                   : (stats?.backlog || 0) > 50 
-                    ? 'Slight backlog building up'
-                    : 'On track — keeping up with new candidates'}
+                    ? 'Some candidates waiting for review'
+                    : 'Review queue under control'}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {stats?.totalNew} new candidates came in. {stats?.totalVerified} were verified. {stats?.backlog} are still waiting.
+                {stats?.backlog} candidates haven't been reviewed by Lynn yet (out of {stats?.totalNew} total this month).
               </p>
             </div>
           </div>

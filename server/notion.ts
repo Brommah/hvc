@@ -376,6 +376,9 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
   const totalNew = dailyData.reduce((sum, d) => sum + d.newCandidates, 0);
   const totalVerified = dailyData.reduce((sum, d) => sum + d.verified, 0);
   
+  // Pending = candidates who have NOT been verified yet
+  const pendingReview = allCandidates.filter(c => !c.cvVerifiedByLynn).length;
+  
   const allHours = allCandidates
     .filter(c => c.hoursSinceLastActivity !== null)
     .map(c => c.hoursSinceLastActivity!);
@@ -395,7 +398,7 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
     summary: {
       totalNew,
       totalVerified,
-      backlog: totalNew - totalVerified,
+      backlog: pendingReview, // Actual count of unreviewed candidates
       avgResponseHours,
       conversionRate,
     },

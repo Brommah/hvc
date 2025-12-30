@@ -131,6 +131,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const totalNew = dailyData.reduce((sum, d) => sum + d.newCandidates, 0);
     const totalVerified = dailyData.reduce((sum, d) => sum + d.verified, 0);
     
+    // Pending = candidates who have NOT been verified yet
+    const pendingReview = allPages.filter(p => {
+      const cvVerified = getPropertyValue(p.properties, 'CV Verified by Lynn') as string | null;
+      return !cvVerified; // No verification date = still pending
+    }).length;
+    
     const allHours = allPages
       .map(p => getPropertyValue(p.properties, 'Hours Since Last Activity') as number | null)
       .filter((h): h is number => h !== null);
@@ -150,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       summary: {
         totalNew,
         totalVerified,
-        backlog: totalNew - totalVerified,
+        backlog: pendingReview, // Actual count of unreviewed candidates
         avgResponseHours,
         conversionRate,
       },
