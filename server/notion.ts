@@ -279,30 +279,44 @@ export async function getPendingHumanReview(): Promise<Candidate[]> {
   return candidates;
 }
 
-// Interview statuses
-const INTERVIEW_STATUSES = [
-  'Initial Evaluation Call',
-  'CEO Interview',
-  'Tech Test Task',
-  'Collab Writing',
-  'Trial Period',
-  'Exploratory Call',
-  'Tech Interview',
-  'Accepted',
-];
-
-function getWeekStart(dateStr: string): string {
-  const date = new Date(dateStr);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date.toISOString().split('T')[0];
+// CEO Metrics Types
+export interface CEOMetrics {
+  summary: {
+    totalApplications: number;
+    totalHrBacklog: number;
+    totalOverdueHvc: number;
+  };
+  applicationsByDay: Array<{
+    date: string;
+    total: number;
+    [role: string]: number | string;
+  }>;
+  backlogTrend: Array<{
+    date: string;
+    count: number;
+    newItems: number;
+  }>;
+  overdueHvcTrend: Array<{
+    date: string;
+    count: number;
+  }>;
+  roles: string[];
+  roleBreakdown: Record<string, number>;
+  hrBacklogCandidates: Array<{
+    id: string;
+    name: string;
+    role: string | null;
+    aiScore: number | null;
+    status: string | null;
+    dateAdded: string | null;
+    notionUrl: string;
+  }>;
 }
 
 /**
- * Fetches CEO metrics - 4 key operational graphs
+ * Fetches CEO metrics - Applications and HR Backlog
  */
-export async function getCEOMetrics() {
+export async function getCEOMetrics(): Promise<CEOMetrics> {
   const notion = getNotionClient();
   const databaseId = getDatabaseId();
   
@@ -335,7 +349,47 @@ export async function getCEOMetrics() {
 
   const allCandidates = allPages.map(mapPageToCandidate);
 
-  // Generate all 30 days
+  // === APPLICATIONS BY ROLE PER DAY ===
+  const rolesByDay: Record<string, Record<string, number>> = {};
+  const allRoles = new Set<string>();
+
+  allCandidates.forEach(c => {
+    const day = c.dateAdded?.split('T')[0];
+    if (!day) return;
+    
+    const role = c.role || 'Unknown';
+    allRoles.add(role);
+    
+    if (!rolesByDay[day]) rolesByDay[day] = {};
+    rolesByDay[day][role] = (rolesByDay[day][role] || 0) + 1;
+  });
+
+  const days = Object.keys(rolesByDay).sort();
+  const applicationsByDay = days.map(day => ({
+    date: day,
+    total: Object.values(rolesByDay[day]).reduce((a, b) => a + b, 0),
+    ...rolesByDay[day],
+  }));
+
+  // === HR BACKLOG ===
+  // AI Score >= 7 AND Status in (HR Screening, HM CV Screening)
+  const hrBacklogStatuses = ['HR Screening', 'HM CV Screening'];
+  const hrBacklog = allCandidates.filter(c => 
+    c.aiScore !== null && 
+    c.aiScore >= 7 && 
+    c.status && 
+    hrBacklogStatuses.includes(c.status)
+  );
+
+  // HR Backlog by day (when they entered the backlog)
+  const backlogByDay: Record<string, number> = {};
+  hrBacklog.forEach(c => {
+    const day = c.dateAdded?.split('T')[0];
+    if (!day) return;
+    backlogByDay[day] = (backlogByDay[day] || 0) + 1;
+  });
+
+  // Generate all 30 days for consistent charting
   const allDays: string[] = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date();
@@ -343,156 +397,61 @@ export async function getCEOMetrics() {
     allDays.push(d.toISOString().split('T')[0]);
   }
 
-  // =============================================
-  // GRAPH 1: Time to Interview
-  // =============================================
-  const candidatesWithInterview = allCandidates.filter(c => 
-    c.status && INTERVIEW_STATUSES.includes(c.status)
+  // Calculate cumulative backlog (outstanding items by EOD)
+  let cumulativeCount = 0;
+  const backlogTrend = allDays.map(day => {
+    cumulativeCount += backlogByDay[day] || 0;
+    return {
+      date: day,
+      count: cumulativeCount,
+      newItems: backlogByDay[day] || 0,
+    };
+  });
+
+  // === OVERDUE HVCs ===
+  // HVCs (Hot Candidate, Priority 1st, or Stratification H) with >24h since last activity
+  const excludedStatuses = ['Company Rejected', 'Candidate Rejected', 'Accepted'];
+  const overdueHvcs = allCandidates.filter(c => 
+    c.hotCandidate || c.priority === '1st' || c.stratification === 'H'
+  ).filter(c => 
+    c.hoursSinceLastActivity !== null && c.hoursSinceLastActivity > 24
+  ).filter(c => 
+    !c.status || !excludedStatuses.includes(c.status)
   );
-  
-  const timeToInterviewByWeek: Record<string, { totalDays: number; count: number }> = {};
-  
-  candidatesWithInterview.forEach(c => {
+
+  // Overdue HVC trend
+  const overdueByDay: Record<string, number> = {};
+  overdueHvcs.forEach(c => {
     const day = c.dateAdded?.split('T')[0];
     if (!day) return;
-    const daysInSystem = c.hoursSinceLastActivity ? c.hoursSinceLastActivity / 24 : 0;
-    const weekStart = getWeekStart(day);
-    if (!timeToInterviewByWeek[weekStart]) {
-      timeToInterviewByWeek[weekStart] = { totalDays: 0, count: 0 };
-    }
-    timeToInterviewByWeek[weekStart].totalDays += daysInSystem;
-    timeToInterviewByWeek[weekStart].count += 1;
+    overdueByDay[day] = (overdueByDay[day] || 0) + 1;
   });
 
-  const timeToInterviewTrend = Object.keys(timeToInterviewByWeek).sort().map(week => ({
-    week,
-    avgDays: Math.round(timeToInterviewByWeek[week].totalDays / timeToInterviewByWeek[week].count),
-    count: timeToInterviewByWeek[week].count,
-  }));
-
-  // =============================================
-  // GRAPH 2: AI vs Human Delta (HVCs only)
-  // =============================================
-  const hvcsWithBothScores = allCandidates.filter(c => 
-    c.aiScore !== null && c.aiScore >= 7 && c.humanScore !== null
-  );
-
-  const aiHumanDeltaByDay: Record<string, { totalDelta: number; count: number }> = {};
-  
-  hvcsWithBothScores.forEach(c => {
-    const day = c.dateAdded?.split('T')[0];
-    if (!day || c.aiScore === null || c.humanScore === null) return;
-    if (!aiHumanDeltaByDay[day]) {
-      aiHumanDeltaByDay[day] = { totalDelta: 0, count: 0 };
-    }
-    aiHumanDeltaByDay[day].totalDelta += (c.humanScore - c.aiScore);
-    aiHumanDeltaByDay[day].count += 1;
-  });
-
-  const aiVsHumanTrend = allDays.map(day => {
-    const data = aiHumanDeltaByDay[day];
+  let cumulativeOverdue = 0;
+  const overdueHvcTrend = allDays.map(day => {
+    cumulativeOverdue += overdueByDay[day] || 0;
     return {
       date: day,
-      avgDelta: data ? Math.round((data.totalDelta / data.count) * 10) / 10 : null,
-      count: data?.count || 0,
-    };
-  }).filter(d => d.count > 0);
-
-  // =============================================
-  // GRAPH 3: Stage Dwell Time
-  // =============================================
-  const statusDwellTime: Record<string, { totalHours: number; count: number }> = {};
-  
-  allCandidates.forEach(c => {
-    if (!c.status || c.hoursSinceLastActivity === null) return;
-    if (!statusDwellTime[c.status]) {
-      statusDwellTime[c.status] = { totalHours: 0, count: 0 };
-    }
-    statusDwellTime[c.status].totalHours += c.hoursSinceLastActivity;
-    statusDwellTime[c.status].count += 1;
-  });
-
-  const stageDwellTime = Object.entries(statusDwellTime)
-    .map(([status, data]) => ({
-      status,
-      avgHours: Math.round(data.totalHours / data.count),
-      count: data.count,
-    }))
-    .sort((a, b) => b.avgHours - a.avgHours);
-
-  // =============================================
-  // GRAPH 4: Response Time Trend
-  // =============================================
-  const responseTimeByDay: Record<string, { totalHours: number; count: number }> = {};
-  
-  allCandidates.forEach(c => {
-    const day = c.dateAdded?.split('T')[0];
-    if (!day || c.hoursSinceLastActivity === null) return;
-    if (!responseTimeByDay[day]) {
-      responseTimeByDay[day] = { totalHours: 0, count: 0 };
-    }
-    responseTimeByDay[day].totalHours += c.hoursSinceLastActivity;
-    responseTimeByDay[day].count += 1;
-  });
-
-  const responseTimeTrend = allDays.map(day => {
-    const data = responseTimeByDay[day];
-    return {
-      date: day,
-      avgHours: data ? Math.round(data.totalHours / data.count) : null,
-      count: data?.count || 0,
+      count: cumulativeOverdue,
     };
   });
 
-  // =============================================
-  // SUMMARY + EXISTING DATA
-  // =============================================
-  const hrBacklogStatuses = ['HR Screening', 'HM CV Screening'];
-  const hrBacklog = allCandidates.filter(c => 
-    c.aiScore !== null && c.aiScore >= 7 && c.status && hrBacklogStatuses.includes(c.status)
-  );
-
-  const allHours = allCandidates
-    .filter(c => c.hoursSinceLastActivity !== null)
-    .map(c => c.hoursSinceLastActivity!);
-  const avgResponseHours = allHours.length > 0
-    ? Math.round(allHours.reduce((a, b) => a + b, 0) / allHours.length)
-    : 0;
-
+  // Role breakdown
   const roleBreakdown: Record<string, number> = {};
-  const rolesByDay: Record<string, Record<string, number>> = {};
-  const allRoles = new Set<string>();
-  
   allCandidates.forEach(c => {
     const role = c.role || 'Unknown';
     roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
-    allRoles.add(role);
-    const day = c.dateAdded?.split('T')[0];
-    if (day) {
-      if (!rolesByDay[day]) rolesByDay[day] = {};
-      rolesByDay[day][role] = (rolesByDay[day][role] || 0) + 1;
-    }
   });
-
-  const applicationsByDay = allDays.map(day => ({
-    date: day,
-    total: Object.values(rolesByDay[day] || {}).reduce((a, b) => a + b, 0),
-    ...(rolesByDay[day] || {}),
-  }));
 
   return {
     summary: {
       totalApplications: allCandidates.length,
       totalHrBacklog: hrBacklog.length,
-      avgResponseHours,
-      candidatesAtInterview: candidatesWithInterview.length,
-      hvcsWithScores: hvcsWithBothScores.length,
+      totalOverdueHvc: overdueHvcs.length,
     },
-    timeToInterviewTrend,
-    aiVsHumanTrend,
-    stageDwellTime,
-    responseTimeTrend,
     applicationsByDay,
+    backlogTrend,
+    overdueHvcTrend,
     roles: Array.from(allRoles).sort(),
     roleBreakdown,
     hrBacklogCandidates: hrBacklog.map(c => ({

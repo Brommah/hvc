@@ -11,9 +11,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
+        <Route path="/" element={<CEODashboard />} />
         <Route path="/pending-review" element={<PendingReview />} />
-        <Route path="/ceo" element={<CEODashboard />} />
+        <Route path="/overdue-hvc" element={<App />} />
         <Route path="/awaiting-review" element={<AwaitingReviewPage />} />
       </Routes>
     </BrowserRouter>

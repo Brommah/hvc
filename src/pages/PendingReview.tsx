@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { usePendingReview } from '../hooks/usePendingReview';
 import { StatusBadge } from '../components/StatusBadge';
 
@@ -76,18 +77,18 @@ export function PendingReview() {
             </div>
             
             <div className="flex items-center gap-4 text-sm">
-              <a
-                href="/"
+              <Link
+                to="/"
                 className="text-gray-500 hover:text-gray-900 transition-colors"
               >
-                ← HVC Dashboard
-              </a>
-              <a
-                href="/ceo"
+                ← Dashboard
+              </Link>
+              <Link
+                to="/overdue-hvc"
                 className="text-gray-500 hover:text-gray-900 transition-colors"
               >
-                CEO Insights
-              </a>
+                Overdue HVCs
+              </Link>
               <div className="flex items-center gap-2 text-gray-400">
                 <span>Last sync:</span>
                 <span className="text-gray-600 font-medium">{formatLastUpdated(lastUpdated)}</span>
