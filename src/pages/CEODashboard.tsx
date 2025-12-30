@@ -124,12 +124,15 @@ export function CEODashboard() {
             <div className="text-4xl font-light text-gray-900">{stats?.totalVerified || 0}</div>
             <div className="text-sm text-gray-400 mt-2">Reviewed by Lynn</div>
           </div>
-          <div className="border border-gray-100 p-6">
+          <a 
+            href="/awaiting-review" 
+            className="border border-gray-100 p-6 hover:border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer block"
+          >
             <div className={`text-4xl font-light ${(stats?.backlog || 0) > 50 ? 'text-red-500' : 'text-gray-900'}`}>
               {stats?.backlog || 0}
             </div>
-            <div className="text-sm text-gray-400 mt-2">Awaiting Review</div>
-          </div>
+            <div className="text-sm text-gray-400 mt-2">Awaiting Review →</div>
+          </a>
           <div className="border border-gray-100 p-6">
             <div className={`text-4xl font-light ${(stats?.avgResponseHours || 0) > 24 ? 'text-red-500' : 'text-green-600'}`}>
               {stats?.avgResponseHours || 0}h

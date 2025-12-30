@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { getHighValueCandidates, getPendingHumanReview, getCEOMetrics } from './notion.js';
+import { getHighValueCandidates, getPendingHumanReview, getCEOMetrics, getAwaitingReview } from './notion.js';
 
 const app = express();
 const PORT = 3001;
@@ -53,6 +53,23 @@ app.get('/api/ceo-metrics', async (_req, res) => {
     res.json({ success: true, data: metrics, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('Error fetching CEO metrics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * GET /api/awaiting-review
+ * Returns candidates awaiting Lynn's review
+ */
+app.get('/api/awaiting-review', async (_req, res) => {
+  try {
+    const candidates = await getAwaitingReview();
+    res.json({ success: true, data: candidates, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('Error fetching awaiting review:', error);
     res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 

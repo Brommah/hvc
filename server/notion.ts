@@ -405,3 +405,67 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
   };
 }
 
+/**
+ * Simple candidate for awaiting review list
+ */
+export interface AwaitingReviewCandidate {
+  id: string;
+  name: string;
+  role: string | null;
+  aiScore: number | null;
+  dateAdded: string | null;
+  notionUrl: string;
+}
+
+/**
+ * Fetches candidates awaiting Lynn's review
+ */
+export async function getAwaitingReview(): Promise<AwaitingReviewCandidate[]> {
+  const notion = getNotionClient();
+  const databaseId = getDatabaseId();
+  
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const allPages: PageObjectResponse[] = [];
+  let hasMore = true;
+  let startCursor: string | undefined = undefined;
+
+  while (hasMore) {
+    const response = await notion.databases.query({
+      database_id: databaseId,
+      filter: {
+        and: [
+          {
+            property: 'Date Added',
+            created_time: { on_or_after: thirtyDaysAgo.toISOString() },
+          },
+          {
+            property: 'CV Verified by Lynn',
+            date: { is_empty: true },
+          },
+        ],
+      },
+      sorts: [{ property: 'AI Score', direction: 'descending' }],
+      start_cursor: startCursor,
+      page_size: 100,
+    });
+
+    const pages = response.results.filter(
+      (page): page is PageObjectResponse => page.object === 'page' && 'properties' in page
+    );
+    allPages.push(...pages);
+    hasMore = response.has_more;
+    startCursor = response.next_cursor ?? undefined;
+  }
+
+  return allPages.map(page => ({
+    id: page.id,
+    name: (getPropertyValue(page.properties, 'Name') as string) || 'Unknown',
+    role: getPropertyValue(page.properties, 'Role') as string | null,
+    aiScore: getPropertyValue(page.properties, 'AI Score') as number | null,
+    dateAdded: getPropertyValue(page.properties, 'Date Added') as string | null,
+    notionUrl: page.url,
+  }));
+}
+
