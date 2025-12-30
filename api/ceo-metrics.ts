@@ -4,25 +4,7 @@ import { Client } from '@notionhq/client';
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 const DATABASE_ID = process.env.NOTION_DATABASE_ID!;
 
-interface DayData {
-  day: string;
-  date: string;
-  newCandidates: number;
-  verified: number;
-  avgResponseHours: number;
-  candidateCount: number;
-}
-
-interface CEOMetrics {
-  dailyData: DayData[];
-  summary: {
-    totalNew: number;
-    totalVerified: number;
-    backlog: number;
-    avgResponseHours: number;
-    conversionRate: number;
-  };
-}
+type PageResult = { id: string; url: string; properties: Record<string, unknown>; created_time: string };
 
 function getPropertyValue(properties: Record<string, unknown>, key: string): unknown {
   const prop = properties[key] as Record<string, unknown> | undefined;
@@ -34,6 +16,8 @@ function getPropertyValue(properties: Record<string, unknown>, key: string): unk
       return ((prop.title as Array<{ plain_text: string }>) || []).map((t) => t.plain_text).join('') || null;
     case 'select':
       return (prop.select as { name: string } | null)?.name || null;
+    case 'status':
+      return (prop.status as { name: string } | null)?.name || null;
     case 'number':
       return prop.number;
     case 'date':
@@ -59,8 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Fetch all candidates with pagination
-    type PageResult = { id: string; created_time: string; properties: Record<string, unknown> };
+    // Fetch ALL candidates from last 30 days
     const allPages: PageResult[] = [];
     let hasMore = true;
     let startCursor: string | undefined;
@@ -77,98 +60,109 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       const pages = response.results.filter(
-        (p): p is PageResult => p.object === 'page' && 'properties' in p
+        (p): p is PageResult => p.object === 'page' && 'properties' in p && 'url' in p
       );
       allPages.push(...pages);
       hasMore = response.has_more;
       startCursor = response.next_cursor ?? undefined;
     }
 
-    // Build last 30 days
-    const days: { day: string; date: string; dateObj: Date }[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      d.setHours(0, 0, 0, 0);
-      days.push({
-        day: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        date: d.toISOString().split('T')[0],
-        dateObj: d,
-      });
-    }
+    // Parse all candidates
+    const candidates = allPages.map(page => ({
+      id: page.id,
+      name: (getPropertyValue(page.properties, 'Name') as string) || 'Unknown',
+      role: (getPropertyValue(page.properties, 'Role') as string) || 'Unknown',
+      status: getPropertyValue(page.properties, 'Status') as string | null,
+      aiScore: getPropertyValue(page.properties, 'AI Score') as number | null,
+      dateAdded: (getPropertyValue(page.properties, 'Date Added') as string) || page.created_time,
+      notionUrl: page.url,
+    }));
 
-    // Process candidates
-    const dailyData: DayData[] = days.map(({ day, date }) => {
-      const dayCandidates = allPages.filter(p => {
-        const addedDate = (getPropertyValue(p.properties, 'Date Added') as string)?.split('T')[0];
-        return addedDate === date;
-      });
+    // === APPLICATIONS BY ROLE PER DAY ===
+    const rolesByDay: Record<string, Record<string, number>> = {};
+    const allRoles = new Set<string>();
 
-      const verifiedOnDay = allPages.filter(p => {
-        const verifiedDate = (getPropertyValue(p.properties, 'CV Verified by Lynn') as string)?.split('T')[0];
-        return verifiedDate === date;
-      });
-
-      const hoursValues = dayCandidates
-        .map(p => getPropertyValue(p.properties, 'Hours Since Last Activity') as number | null)
-        .filter((h): h is number => h !== null);
-
-      const avgHours = hoursValues.length > 0
-        ? hoursValues.reduce((a, b) => a + b, 0) / hoursValues.length
-        : 0;
-
-      return {
-        day,
-        date,
-        newCandidates: dayCandidates.length,
-        verified: verifiedOnDay.length,
-        avgResponseHours: Math.round(avgHours),
-        candidateCount: dayCandidates.length,
-      };
+    candidates.forEach(c => {
+      const day = c.dateAdded?.split('T')[0];
+      if (!day) return;
+      
+      const role = c.role || 'Unknown';
+      allRoles.add(role);
+      
+      if (!rolesByDay[day]) rolesByDay[day] = {};
+      rolesByDay[day][role] = (rolesByDay[day][role] || 0) + 1;
     });
 
+    // Build sorted daily data
+    const days = Object.keys(rolesByDay).sort();
+    const applicationsByDay = days.map(day => ({
+      date: day,
+      total: Object.values(rolesByDay[day]).reduce((a, b) => a + b, 0),
+      ...rolesByDay[day],
+    }));
+
+    // === HR BACKLOG ===
+    // AI Score >= 7 AND Status in (HR Screening, HM CV Screening)
+    const hrBacklogStatuses = ['HR Screening', 'HM CV Screening'];
+    const hrBacklog = candidates.filter(c => 
+      c.aiScore !== null && 
+      c.aiScore >= 7 && 
+      c.status && 
+      hrBacklogStatuses.includes(c.status)
+    );
+
+    // HR Backlog by day (when they entered the backlog)
+    const backlogByDay: Record<string, number> = {};
+    hrBacklog.forEach(c => {
+      const day = c.dateAdded?.split('T')[0];
+      if (!day) return;
+      backlogByDay[day] = (backlogByDay[day] || 0) + 1;
+    });
+
+    const backlogTrend = days.map(day => ({
+      date: day,
+      count: backlogByDay[day] || 0,
+    }));
+
     // Summary
-    const totalNew = dailyData.reduce((sum, d) => sum + d.newCandidates, 0);
-    const totalVerified = dailyData.reduce((sum, d) => sum + d.verified, 0);
-    
-    // Pending = candidates who have NOT been verified yet
-    const pendingReview = allPages.filter(p => {
-      const cvVerified = getPropertyValue(p.properties, 'CV Verified by Lynn') as string | null;
-      return !cvVerified; // No verification date = still pending
-    }).length;
-    
-    const allHours = allPages
-      .map(p => getPropertyValue(p.properties, 'Hours Since Last Activity') as number | null)
-      .filter((h): h is number => h !== null);
-    const avgResponseHours = allHours.length > 0
-      ? Math.round(allHours.reduce((a, b) => a + b, 0) / allHours.length)
-      : 0;
+    const totalApplications = candidates.length;
+    const totalHrBacklog = hrBacklog.length;
 
-    // Conversion: candidates with interview status
-    const withInterview = allPages.filter(p => {
-      const status = getPropertyValue(p.properties, 'Interview Status') as string | null;
-      return status && !['', 'None', 'N/A'].includes(status);
-    }).length;
-    const conversionRate = allPages.length > 0 ? Math.round((withInterview / allPages.length) * 100) : 0;
+    // Role breakdown for applications
+    const roleBreakdown: Record<string, number> = {};
+    candidates.forEach(c => {
+      const role = c.role || 'Unknown';
+      roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
+    });
 
-    const metrics: CEOMetrics = {
-      dailyData,
-      summary: {
-        totalNew,
-        totalVerified,
-        backlog: pendingReview, // Actual count of unreviewed candidates
-        avgResponseHours,
-        conversionRate,
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate');
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalApplications,
+          totalHrBacklog,
+        },
+        applicationsByDay,
+        backlogTrend,
+        roles: Array.from(allRoles).sort(),
+        roleBreakdown,
+        hrBacklogCandidates: hrBacklog.map(c => ({
+          id: c.id,
+          name: c.name,
+          role: c.role,
+          aiScore: c.aiScore,
+          status: c.status,
+          dateAdded: c.dateAdded,
+          notionUrl: c.notionUrl,
+        })),
       },
-    };
-
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate');
-    return res.status(200).json({ success: true, data: metrics });
+    });
   } catch (error) {
     console.error('CEO metrics error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 }

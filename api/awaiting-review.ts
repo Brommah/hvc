@@ -58,6 +58,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               property: 'CV Verified by Lynn',
               date: { is_empty: true },
             },
+            {
+              property: 'Status',
+              status: { does_not_equal: 'Company Rejected' },
+            },
+            {
+              property: 'Status',
+              status: { does_not_equal: 'Candidate Rejected' },
+            },
           ],
         },
         sorts: [{ property: 'AI Score', direction: 'descending' }],

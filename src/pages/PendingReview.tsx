@@ -68,10 +68,10 @@ export function PendingReview() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Pending Human Review
+                Screening Backlog
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Candidates reviewed by AI, awaiting human verification
+                Candidates in HR Screening & HM Screening stages
               </p>
             </div>
             
@@ -113,7 +113,7 @@ export function PendingReview() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-gray-200 p-4">
             <div className="text-3xl font-semibold text-gray-900">{stats.total}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Pending Review</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">In Screening</div>
           </div>
           <div className="bg-white border border-red-200 p-4">
             <div className="text-3xl font-semibold text-red-600">{stats.critical}</div>
@@ -121,7 +121,7 @@ export function PendingReview() {
           </div>
           <div className="bg-white border border-amber-200 p-4">
             <div className="text-3xl font-semibold text-amber-600">{formatDuration(stats.avgHours)}</div>
-            <div className="text-xs text-amber-500 uppercase tracking-wide mt-1">Avg. Wait Time</div>
+            <div className="text-xs text-amber-500 uppercase tracking-wide mt-1">Avg. Time in Pipeline</div>
           </div>
         </div>
 

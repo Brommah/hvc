@@ -93,9 +93,10 @@ function mapPageToCandidate(page: { id: string; url: string; properties: Record<
     cvVerifiedByLynn: getPropertyValue(props, 'CV Verified by Lynn') as string | null,
     passedHumanFilter: getPropertyValue(props, 'Passed Human Filter') as boolean || false,
     hoursSinceAiReview: (() => {
-      const aiDate = getPropertyValue(props, 'AI Processed At') as string | null;
-      if (!aiDate) return null;
-      return Math.round((Date.now() - new Date(aiDate).getTime()) / (1000 * 60 * 60));
+      // For screening backlog, calculate hours since Date Added (time in pipeline)
+      const dateAdded = getPropertyValue(props, 'Date Added') as string | null;
+      if (!dateAdded) return null;
+      return Math.round((Date.now() - new Date(dateAdded).getTime()) / (1000 * 60 * 60));
     })(),
   };
 }
@@ -106,45 +107,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Fetch candidates in HR Screening or HM Screening status (the human review backlog)
     const response = await notion.databases.query({
       database_id: DATABASE_ID,
       filter: {
-        and: [
+        or: [
           {
-            property: 'AI Processed At',
-            date: {
-              is_not_empty: true,
-            },
-          },
-          {
-            property: 'CV Verified by Lynn',
-            date: {
-              is_empty: true,
-            },
-          },
-          {
-            property: 'Passed Human Filter',
-            checkbox: {
-              equals: false,
+            property: 'Status',
+            status: {
+              equals: 'HR Screening',
             },
           },
           {
             property: 'Status',
             status: {
-              does_not_equal: 'Company Rejected',
-            },
-          },
-          {
-            property: 'Status',
-            status: {
-              does_not_equal: 'Candidate Rejected',
+              equals: 'HM Screening',
             },
           },
         ],
       },
       sorts: [
         {
-          property: 'AI Processed At',
+          // Sort by date added (oldest first = longest waiting)
+          property: 'Date Added',
           direction: 'ascending',
         },
       ],

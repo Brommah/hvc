@@ -280,41 +280,35 @@ export async function getPendingHumanReview(): Promise<Candidate[]> {
 }
 
 // CEO Metrics Types
-interface DayData {
-  day: string;
-  date: string;
-  newCandidates: number;
-  verified: number;
-  avgResponseHours: number;
-}
-
 export interface CEOMetrics {
-  dailyData: DayData[];
   summary: {
-    totalNew: number;
-    totalVerified: number;
-    backlog: number;
-    avgResponseHours: number;
-    conversionRate: number;
+    totalApplications: number;
+    totalHrBacklog: number;
   };
-}
-
-function getLast30Days(): { day: string; date: string }[] {
-  const days: { day: string; date: string }[] = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    days.push({
-      day: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      date: d.toISOString().split('T')[0],
-    });
-  }
-  return days;
+  applicationsByDay: Array<{
+    date: string;
+    total: number;
+    [role: string]: number | string;
+  }>;
+  backlogTrend: Array<{
+    date: string;
+    count: number;
+  }>;
+  roles: string[];
+  roleBreakdown: Record<string, number>;
+  hrBacklogCandidates: Array<{
+    id: string;
+    name: string;
+    role: string | null;
+    aiScore: number | null;
+    status: string | null;
+    dateAdded: string | null;
+    notionUrl: string;
+  }>;
 }
 
 /**
- * Fetches CEO metrics - simplified for clarity
+ * Fetches CEO metrics - Applications and HR Backlog
  */
 export async function getCEOMetrics(): Promise<CEOMetrics> {
   const notion = getNotionClient();
@@ -348,60 +342,77 @@ export async function getCEOMetrics(): Promise<CEOMetrics> {
   }
 
   const allCandidates = allPages.map(mapPageToCandidate);
-  const days = getLast30Days();
 
-  // Daily data
-  const dailyData: DayData[] = days.map(({ day, date }) => {
-    const dayCandidates = allCandidates.filter(c => c.dateAdded?.split('T')[0] === date);
-    const verifiedOnDay = allCandidates.filter(c => c.cvVerifiedByLynn?.split('T')[0] === date);
-    
-    const hoursValues = dayCandidates
-      .filter(c => c.hoursSinceLastActivity !== null)
-      .map(c => c.hoursSinceLastActivity!);
-    
-    const avgHours = hoursValues.length > 0
-      ? hoursValues.reduce((a, b) => a + b, 0) / hoursValues.length
-      : 0;
+  // === APPLICATIONS BY ROLE PER DAY ===
+  const rolesByDay: Record<string, Record<string, number>> = {};
+  const allRoles = new Set<string>();
 
-    return {
-      day,
-      date,
-      newCandidates: dayCandidates.length,
-      verified: verifiedOnDay.length,
-      avgResponseHours: Math.round(avgHours),
-    };
+  allCandidates.forEach(c => {
+    const day = c.dateAdded?.split('T')[0];
+    if (!day) return;
+    
+    const role = c.role || 'Unknown';
+    allRoles.add(role);
+    
+    if (!rolesByDay[day]) rolesByDay[day] = {};
+    rolesByDay[day][role] = (rolesByDay[day][role] || 0) + 1;
   });
 
-  // Summary
-  const totalNew = dailyData.reduce((sum, d) => sum + d.newCandidates, 0);
-  const totalVerified = dailyData.reduce((sum, d) => sum + d.verified, 0);
-  
-  // Pending = candidates who have NOT been verified yet
-  const pendingReview = allCandidates.filter(c => !c.cvVerifiedByLynn).length;
-  
-  const allHours = allCandidates
-    .filter(c => c.hoursSinceLastActivity !== null)
-    .map(c => c.hoursSinceLastActivity!);
-  const avgResponseHours = allHours.length > 0
-    ? Math.round(allHours.reduce((a, b) => a + b, 0) / allHours.length)
-    : 0;
+  const days = Object.keys(rolesByDay).sort();
+  const applicationsByDay = days.map(day => ({
+    date: day,
+    total: Object.values(rolesByDay[day]).reduce((a, b) => a + b, 0),
+    ...rolesByDay[day],
+  }));
 
-  const withInterview = allCandidates.filter(c => 
-    c.interviewStatus && !['', 'None', 'N/A'].includes(c.interviewStatus)
-  ).length;
-  const conversionRate = allCandidates.length > 0 
-    ? Math.round((withInterview / allCandidates.length) * 100) 
-    : 0;
+  // === HR BACKLOG ===
+  // AI Score >= 7 AND Status in (HR Screening, HM CV Screening)
+  const hrBacklogStatuses = ['HR Screening', 'HM CV Screening'];
+  const hrBacklog = allCandidates.filter(c => 
+    c.aiScore !== null && 
+    c.aiScore >= 7 && 
+    c.status && 
+    hrBacklogStatuses.includes(c.status)
+  );
+
+  // HR Backlog by day
+  const backlogByDay: Record<string, number> = {};
+  hrBacklog.forEach(c => {
+    const day = c.dateAdded?.split('T')[0];
+    if (!day) return;
+    backlogByDay[day] = (backlogByDay[day] || 0) + 1;
+  });
+
+  const backlogTrend = days.map(day => ({
+    date: day,
+    count: backlogByDay[day] || 0,
+  }));
+
+  // Role breakdown
+  const roleBreakdown: Record<string, number> = {};
+  allCandidates.forEach(c => {
+    const role = c.role || 'Unknown';
+    roleBreakdown[role] = (roleBreakdown[role] || 0) + 1;
+  });
 
   return {
-    dailyData,
     summary: {
-      totalNew,
-      totalVerified,
-      backlog: pendingReview, // Actual count of unreviewed candidates
-      avgResponseHours,
-      conversionRate,
+      totalApplications: allCandidates.length,
+      totalHrBacklog: hrBacklog.length,
     },
+    applicationsByDay,
+    backlogTrend,
+    roles: Array.from(allRoles).sort(),
+    roleBreakdown,
+    hrBacklogCandidates: hrBacklog.map(c => ({
+      id: c.id,
+      name: c.name,
+      role: c.role,
+      aiScore: c.aiScore,
+      status: c.status,
+      dateAdded: c.dateAdded,
+      notionUrl: c.notionUrl,
+    })),
   };
 }
 
