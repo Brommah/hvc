@@ -142,8 +142,8 @@ export function CEODashboard() {
         <div className="grid grid-cols-2 gap-8">
           {/* Daily Net Flow */}
           <div className="border border-gray-100 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-1">Daily Backlog Change</h3>
-            <p className="text-xs text-gray-400 mb-6">New minus verified per day. Red = backlog growing.</p>
+            <h3 className="text-sm font-medium text-gray-900 mb-1">Are We Keeping Up?</h3>
+            <p className="text-xs text-gray-400 mb-6">Each bar = candidates added that day minus candidates verified. Red bars mean the backlog grew. Green bars mean we caught up.</p>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={flowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -183,8 +183,8 @@ export function CEODashboard() {
 
           {/* Response Time Trend */}
           <div className="border border-gray-100 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-1">Response Time Trend</h3>
-            <p className="text-xs text-gray-400 mb-6">Avg hours since last activity. Target: under 24h.</p>
+            <h3 className="text-sm font-medium text-gray-900 mb-1">How Fast Are We Responding?</h3>
+            <p className="text-xs text-gray-400 mb-6">Average hours candidates wait before we contact them. Green dashed line = 24h target. Line should trend down toward it.</p>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={responseData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -225,13 +225,13 @@ export function CEODashboard() {
             <div>
               <p className="text-sm text-gray-900 font-medium">
                 {(stats?.backlog || 0) > 100 
-                  ? 'Critical: Significant backlog accumulating'
+                  ? 'We're falling behind — backlog is growing'
                   : (stats?.backlog || 0) > 50 
-                    ? 'Warning: Backlog growing faster than processing'
-                    : 'Healthy: Processing keeping up with intake'}
+                    ? 'Slight backlog building up'
+                    : 'On track — keeping up with new candidates'}
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {stats?.totalNew} candidates in → {stats?.totalVerified} verified out = {stats?.backlog} pending
+                {stats?.totalNew} new candidates came in. {stats?.totalVerified} were verified. {stats?.backlog} are still waiting.
               </p>
             </div>
           </div>
